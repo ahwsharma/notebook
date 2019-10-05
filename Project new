@@ -1,0 +1,17 @@
+mkdir -p /backup/wordpress
+tar -czf /backup/wordpress/initial_backup.tar.gz
+/var/www/wordpress
+tar -czf /backup/cms_systems_backup.tar.gz /var/www/wordpress
+/var/www/drupal /var/www/joomla
+tar -czf /backup/wordpress/wordpress-`date '+%m%d%y'`.tar.gz
+/var/www/wordpress
+[root@Backup ~]# ls -l /backup/wordpress/
+total 9760
+-rw-r--r-- 1 root root 4995743 Apr 17 12:16 initial_backup.tar.gz
+-rw-r--r-- 1 root root 4995743 Apr 17 12:25 wordpress-041713.tar.gz
+[root@Backup ~]#
+EDITOR=nano crontab -e
+crontab -e
+MAILTO=email@example.com
+30 3 * * * /bin/tar -czf /backup/wordpress/wordpress-`date
++\%m\%d\%y`.tar.gz /var/www/wordpress
