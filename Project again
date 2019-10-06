@@ -1,0 +1,149 @@
+#!javascript
+{
+  "provisioners": [
+    {
+      "type": "shell",
+      "scripts": [
+        "scripts/root_setup.sh"
+      ],
+      "override": {
+        "virtualbox": {
+          "execute_command": "echo 'vagrant' | sudo -S sh '{{ .Path }}'"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "scripts": [
+        "scripts/setup.sh"
+      ]
+    }
+  ],
+  "builders": [
+    {
+      "type": "virtualbox",
+      "boot_command": [
+        "<esc><esc><enter><wait>",
+        "/install/vmlinuz noapic preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg <wait>",
+        "debian-installer=en_US auto locale=en_US kbd-chooser/method=us <wait>",
+        "hostname={{ .Name }} <wait>",
+        "fb=false debconf/frontend=noninteractive <wait>",
+        "keyboard-configuration/modelcode=SKIP keyboard-configuration/layout=USA keyboard-configuration/variant=USA console-setup/ask_detect=false <wait>",
+        "initrd=/install/initrd.gz -- <enter><wait>"
+      ],
+      "boot_wait": "4s",
+      "guest_os_type": "Ubuntu_64",
+      "http_directory": "http",
+      "iso_checksum": "4d1a8b720cdd14b76ed9410c63a00d0e",
+      "iso_checksum_type": "md5",
+      "iso_url": "http://releases.ubuntu.com/13.10/ubuntu-13.10-server-amd64.iso",
+      "ssh_username": "vagrant",
+      "ssh_password": "vagrant",
+      "ssh_port": 22,
+      "ssh_wait_timeout": "10000s",
+      "shutdown_command": "echo 'shutdown -P now' > shutdown.sh; echo 'vagrant'|sudo -S sh 'shutdown.sh'",
+      "guest_additions_path": "VBoxGuestAdditions_{{.Version}}.iso",
+      "headless": false,
+      "virtualbox_version_file": ".vbox_version",
+      "vboxmanage": [
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--memory",
+          "2048"
+        ],
+        [
+          "modifyvm",
+          "{{.Name}}",
+          "--cpus",
+          "4"
+        ]
+      ]
+    }
+  ],
+  "post-processors": ["vagrant"]
+}
+#!javascript
+#!/bin/bash
+
+set -e
+
+# Updating and Upgrading dependencies
+sudo apt-get update -y -qq > /dev/null
+sudo apt-get upgrade -y -qq > /dev/null
+
+# Install necessary libraries for guest additions and Vagrant NFS Share
+sudo apt-get -y -q install linux-headers-$(uname -r) build-essential dkms nfs-common
+
+# Install necessary dependencies
+sudo apt-get -y -q install curl wget git tmux firefox xvfb vim
+
+# Setup sudo to allow no-password sudo for "admin"
+groupadd -r admin
+usermod -a -G admin vagrant
+cp /etc/sudoers /etc/sudoers.orig
+sed -i -e '/Defaults\s\+env_reset/a Defaults\texempt_group=admin' /etc/sudoers
+sed -i -e 's/%admin ALL=(ALL) ALL/%admin ALL=NOPASSWD:ALL/g' /etc/sudoers
+
+#Install Redis
+sudo apt-get -y -q install libjemalloc1
+wget -q http://d7jrzzvab3wte.cloudfront.net/checkbot/deb/redis-server_2.6.13-1_amd64.deb
+sha1sum redis-server_2.6.13-1_amd64.deb | grep 'ab50cf037fd63e160946f8946b6d318cdf11800d'
+dpkg -i redis-server_2.6.13-1_amd64.deb
+rm redis-server_2.6.13-1_amd64.deb
+
+# Install required libraries for RVM and Ruby
+sudo apt-get -y -q install gawk libreadline6-dev zlib1g-dev libssl-dev libyaml-dev libsqlite3-dev sqlite3 autoconf libgdbm-dev libncurses5-dev automake libtool bison pkg-config libffi-dev libxml2-dev libxslt-dev libxml2
+
+
+# Install Postgresql
+sudo apt-get -y -q install postgresql libpq-dev postgresql-contrib
+
+# Set Password to test for user postgres
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'test';"
+#!javascript
+#!/bin/bash
+
+set -e
+
+echo "Instaling for rof"
+
+# Installing vagrant keys
+mkdir ~/.ssh
+chmod 700 ~/.ssh
+cd ~/.ssh
+wget --no-check-certificate 'https://raw.github.com/mitchellh/vagrant/master/keys/vagrant.pub' -O authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+chown -R vagrant ~/.ssh
+
+# Node.js Setup
+wget --retry-connrefused -q -O - https://raw.github.com/creationix/nvm/master/install.sh | sh
+source ~/.nvm/nvm.sh
+
+nvm install 0.10.18
+nvm alias default 0.10.18
+
+echo "source ~/.nvm/nvm.sh" >> ~/.bash_profile
+
+# RVM Install
+wget --retry-connrefused -q -O - https://get.rvm.io | bash -s stable
+source /home/vagrant/.rvm/scripts/rvm
+
+rvm autolibs read-fail
+
+rvm install 2.0.0-p195
+
+gem install bundler zeus
+#!javascript
+#!/bin/bash
+
+set -e
+
+#export PACKER_LOG=1
+rm packer_virtualbox_virtualbox.box || true
+packer build -only=virtualbox packer.json
+vagrant box remove vagrant_machine || true
+vagrant box add vagrant_machine packer/packer_virtualbox_virtualbox.box
+#!javascript
+vagrant destroy
+vagrant up
