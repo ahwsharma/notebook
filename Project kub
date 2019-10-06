@@ -1,0 +1,120 @@
+kubectl get nodes
+NAME               STATUS         AGE
+ip-10-0-0-0     Ready,master      1h
+ip-172-172-172-172 Ready          1h
+ip-192-192-192-192 Ready          1h
+kubectl create -f secrets.yaml
+kubectl create -f mysql.yaml
+kubectl create -f php.yaml
+kubectl create -f data-loader-job.yaml
+kubectl get service web -o wide
+kubectl delete all,secrets,jobs,persistentvolumeclaims --selector='heptio.com/example=lamp'
+php/
+  Dockerfile
+
+  html/
+    index.php
+    mysql-connect.php
+
+  script/
+    mysql-sakila-data-loader.sh
+    # https://docs.docker.com/engine/reference/builder/
+
+# base this image on the PHP image that comes with Apache https://hub.docker.com/_/php/
+FROM php:7.0-apache
+
+# install mysql-client and curl for our data init script
+# install the PHP extension pdo_mysql for our connection script
+# clean up
+RUN apt-get update \
+  && apt-get install -y mysql-client curl \
+  && docker-php-ext-install pdo_mysql \
+  && apt-get clean \
+  && rm -rf /var/cache/apt/archives
+
+# take the contents of the local html/ folder, and mount to /var/www/html/ inside the container
+# this is the expected web root of the default website for this server, so put your index.php here
+COPY html/ /var/www/html/
+
+# take the contents of the local script/ folder, and mount to /tmp/ inside the container
+# we can run one-time scripts, downloads, and other initial processes from /tmp/
+COPY script/ /tmp/
+docker build -t heptio/example-php-dbconnect:latest .
+docker run \
+  -d \
+  -p 8080:80 \
+  --name live-app \
+  heptio/example-php-dbconnect;
+  docker build -t heptio/example-php-dbconnect:latest .
+docker push heptio/example-php-dbconnect
+docker build -t heptio/example-php-dbconnect:latest .
+docker stop live-app
+docker rm live-app
+docker run \
+  -d \
+  -p 8080:80 \
+  --name live-app \
+  heptio/example-php-dbconnect;
+docker build -t heptio/example-php-dbconnect:latest .
+docker push heptio/example-php-dbconnect
+kubectl create -f secrets.yaml
+secret "mysql-credentials" created
+data:
+  user: dmFyTXlEQlVzZXI=
+  echo -n varMyDBUser | base64
+  env:
+  - name: MYSQL_USER
+    valueFrom:
+      secretKeyRef:
+        name: mysql-credentials
+        key: user
+        kubectl get secrets
+        NAME                     TYPE                                  DATA      AGE
+mysql-credentials        Opaque                                3         43s
+kubectl create -f mysql.yaml
+persistentvolumeclaim "database" created
+deployment "mysql" created
+service "mysql" created
+kubectl describe pods mysql
+kubectl logs mysql-1259503160-l6kc5
+kubectl run -i -t --rm ephemeral --image=mysql -- /bin/sh -l
+mysql -h mysql.default.svc.cluster.local -P 3306 -u root -pvarMyRootPass
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| performance_schema |
+| sakila             |
+| sys                |
++--------------------+
+5 rows in set (0.00 sec)
+mysql> Session ended, resume using 'kubectl attach ephemeral-546807040-rvz86 -c ephemeral -i -t' command when the pod is running
+deployment "ephemeral" deleted
+kubectl delete deployment mysql
+kubectl delete service mysql
+kubectl delete persistentvolumeclaim database
+kubectl create -f mysql.yaml
+kubectl describe pods mysql
+kubectl logs mysql-1259503160-l6kc5
+kubectl run -i -t --rm ephemeral --image=mysql -- /bin/sh -l
+kubectl delete -f mysql.yaml
+kubectl create -f php.yaml
+deployment "php-dbconnect" created
+service "web" created
+- image: heptio/example-php-dbconnect
+kubectl get service web -o wide
+kubectl get pods -l app=php-dbconnect
+kubectl describe php-dbconnect-3962733399-sn3th
+kubectl logs php-dbconnect-3962733399-sn3th
+kubectl exec -it php-dbconnect-3962733399-sn3th -- /bin/bash
+curl localhost/mysql-connect.php
+{"outcome":true}
+kubectl delete service web
+kubectl delete deployment php-dbconnect
+kubectl create -f php.yaml
+kubectl get pods -l app=php-dbconnect
+kubectl describe php-dbconnect-3962733399-sn3th
+kubectl logs php-dbconnect-3962733399-sn3th
+kubectl exec -it php-dbconnect-3962733399-sn3th -- /bin/bash
